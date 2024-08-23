@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hamster Kombat</title>
+    <link rel="stylesheet" href="css/styles.css"> <!-- Link to external CSS -->
+</head>
+<body>
+    <div id="game-area">
+        <img id="tap-img" src="images/logo.png" alt="Tap Target">
+        <p id="score">Taps: 0</p>
+        <p id="limit">Limit: 300</p> <!-- Initial limit -->
+        <p id="level">Level: 1</p>
+        <p id="next-upgrade">Next Upgrade: 100 taps</p> <!-- Initial upgrade requirement -->
+        <button id="upgrade-btn">Upgrade Tap Power</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const gameArea = document.getElementById('game-area');
+        const scoreDisplay = document.getElementById('score');
+        const limitDisplay = document.getElementById('limit');
+        const levelDisplay = document.getElementById('level');
+        const upgradeDisplay = document.getElementById('next-upgrade');
+        const upgradeBtn = document.getElementById('upgrade-btn');
+
+        let score = 0;
+        let tapLimit = 300; // Initial tap limit
+        let tapPower = 1; // Default tap power
+        let level = 1; // Initial level
+        let upgradeCost = 100; // Initial upgrade cost
+
+        gameArea.addEventListener('click', (e) => {
+            if (score < tapLimit) {
+                score += tapPower;
+                socket.emit('tap', { score, tapLimit, level, tapPower });
+
+                const x = e.clientX;
+                const y = e.clientY;
+
+                const tapNumber = document.createElement('div');
+                tapNumber.className = 'tap-number';
+                tapNumber.style.left = `${x}px`;
+                tapNumber.style.top = `${y}px`;
+                tapNumber.textContent = `+${tapPower}`;
+                gameArea.appendChild(tapNumber);
+
+                setTimeout(() => {
+                    gameArea.removeChild(tapNumber);
+                }, 1000);
+            } else {
+                alert('Tap limit reached! Upgrade to continue.');
+            }
+        });
+
+        socket.on('tap', (data) => {
+            score = data.score; // Keep accumulated score
+            tapLimit = data.tapLimit; // Update tap limit
+            level = data.level; // Update level
+            tapPower = data.tapPower; // Update tap power
+            upgradeCost = data.upgradeCost; // Update upgrade cost
+
+            scoreDisplay.textContent = `Taps: ${data.score}`;
+            limitDisplay.textContent = `Limit: ${data.tapLimit}`;
+            levelDisplay.textContent = `Level: ${data.level}`;
+            upgradeDisplay.textContent = `Next Upgrade: ${data.upgradeCost} taps`;
+        });
+
+        upgradeBtn.addEventListener('click', () => {
+            if (score >= upgradeCost) {
+                level += 1;
+                tapLimit = 300 * level; // Calculate new tap limit based on level
+                upgradeCost = 100 * level; // Calculate new upgrade cost based on level
+                socket.emit('upgrade', { tapLimit, level, upgradeCost });
+            } else {
+                alert('Reach the tap limit to upgrade!');
+            }
+        });
+
+        // Save data to the database when the page is closed
+        window.addEventListener('beforeunload', () => {
+            socket.emit('save', { score, tapLimit, level });
+        });
+    </script>
+</body>
+</html>
